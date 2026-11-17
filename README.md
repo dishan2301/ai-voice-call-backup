@@ -16,9 +16,15 @@ Free Render services sleep after inactivity and have no persistent disk. Local d
 
 No provider key is needed to start the preview. Outlook is disabled by default. Do not put credentials into Git or Docker build arguments. Configure private secrets in the host's environment only after choosing durable storage, encryption-key persistence, allowed mailbox identities and an HTTPS Microsoft callback URI. Sign in through OAuth on the new origin; do not copy a laptop's session cookie or token database into a public image.
 
-## Voice limitations
+## Phone voice test
 
-The existing browser transport is WebRTC. Hosting the website does not itself relay audio: different-network/mobile-data operation needs a TURN relay and compatible hosting. This free preview does not expose Asterisk or public SIP/RTP ports. The direct-tool SIP conversation pilot remains separate from the browser transport. A working `/health` response does not certify remote voice or Outlook connectivity.
+Open `/talk` on the deployed HTTPS origin. This page sends PCM audio over a same-origin WebSocket, so it does not need TURN or public SIP ports. It uses an AudioWorklet for microphone capture, Gemini Live streaming audio, interruption handling and bounded calls.
+
+In Render's private environment settings, set `GEMINI_API_KEY` to your own Gemini key. Never put it into Git or the browser. Sync the Blueprint to generate `VOICE_PREVIEW_TOKEN`; enter that private access code only into the call page's masked field. A code authorizes general voice only, not mailbox access. Only one call is admitted at a time and calls end after five minutes. API usage can incur provider charges according to your Gemini project.
+
+Outlook calls require an authenticated, owned Microsoft session cookie on this new origin, enabled read-only OAuth configuration and persistent credential keys. The site never reuses the laptop's login cookie or database. Outlook is disabled in the default preview. Free ephemeral storage remains unsuitable for durable mailbox hosting.
+
+The older application WebRTC transport remains separate and needs its own media connectivity configuration. A healthy status page is not proof of a successful real phone call.
 
 ## Local development
 

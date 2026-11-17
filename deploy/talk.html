@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Voice Call</title>
+<style>body{font:18px system-ui;background:#111827;color:#f3f4f6;max-width:620px;margin:8vh auto;padding:24px}input,button{font:inherit;padding:12px;margin:8px 0;max-width:100%;box-sizing:border-box}input{width:100%}button{cursor:pointer}#status{line-height:1.6}a{color:#93c5fd}</style>
+<h1>AI Voice Call</h1><p>Talk through your phone browser. No Linphone or same Wi-Fi needed.</p>
+<p>For a general voice test, enter your private voice access code. Outlook answers require owner sign-in.</p>
+<label>Private voice access code<input id="code" type="password" autocomplete="off"></label>
+<button id="start">Start call</button> <button id="stop" disabled>End call</button>
+<p id="status" role="status">Ready to connect. A call uses Gemini API quota and lasts up to five minutes.</p>
+<p><a href="/auth/microsoft/start">Sign in to Outlook</a> · <a href="/">Deployment status</a></p>
+<script src="/talk.js"></script></html>

@@ -1,10 +1,20 @@
 """Public non-sensitive deployment status; all application routes keep their auth."""
 from starlette.requests import Request
-from starlette.responses import HTMLResponse,JSONResponse
+from starlette.responses import HTMLResponse,JSONResponse,FileResponse
+from pathlib import Path
 from app.main import app as application
 from app.core.config import get_settings
 
 async def app(scope,receive,send):
+    path=scope.get('path')
+    if scope['type']=='websocket' and path=='/talk/ws':
+        from deploy.browser_voice import call
+        return await call(scope,receive,send)
+    public={'/talk':'talk.html','/talk.js':'talk.js','/voice-capture.js':'voice-capture.js'}
+    if scope['type']=='http' and path in public and scope['method'] in {'GET','HEAD'}:
+        if Request(scope).url.hostname not in get_settings().allowed_hosts:
+            return await JSONResponse({'detail':'Untrusted request host'},status_code=403)(scope,receive,send)
+        return await FileResponse(Path(__file__).parent/public[path])(scope,receive,send)
     if scope['type']=='http' and scope.get('path')=='/' and scope['method'] in {'GET','HEAD'}:
         request=Request(scope)
         if request.url.hostname not in get_settings().allowed_hosts:
@@ -15,5 +25,5 @@ async def app(scope,receive,send):
 <p>The backend is deployed. Private mail requires owner sign-in and server-side configuration.</p>
 <p>This free preview has temporary storage. It is not a production mailbox service.</p>
 <p><a href="/health">Check backend health</a></p>
-<p>Remote voice still requires a configured media relay. No credentials or mail are included in this deployment.</p></html>''')(scope,receive,send)
+<p><a href="/talk">Open browser voice call</a>. A private server-side access code and Gemini key must be configured. No credentials or mail are included in this deployment.</p></html>''')(scope,receive,send)
     await application(scope,receive,send)

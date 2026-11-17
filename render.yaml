@@ -18,3 +18,5 @@ services:
         value: "false"
       - key: MICROSOFT_ENABLED
         value: "false"
+      - key: VOICE_PREVIEW_TOKEN
+        generateValue: true

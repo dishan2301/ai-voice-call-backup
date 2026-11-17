@@ -174,7 +174,7 @@ class OutlookConversationLive(GeminiLive):
         socket=await self.connector(URL,additional_headers={'x-goog-api-key':key},
                                     open_timeout=5,max_size=2**20,max_queue=8,proxy=None,ssl=context)
         setup={'model':'models/'+model,'generationConfig':{'responseModalities':['AUDIO']},
-               'systemInstruction':{'parts':[{'text':POLICY}]},'tools':TOOLS,
+               'systemInstruction':{'parts':[{'text':getattr(self,'system_instruction',POLICY)}]},'tools':getattr(self,'tools',TOOLS),
                'inputAudioTranscription':{},'outputAudioTranscription':{},
                'realtimeInputConfig':{'automaticActivityDetection':{'silenceDurationMs':800,'prefixPaddingMs':200}},
                'sessionResumption':{'handle':self.resume_handle} if resume and self.resume_handle else {},
@@ -246,7 +246,8 @@ class OutlookConversationLive(GeminiLive):
         except ProviderFailure:
             await self.unavailable_notice()
             raise
-        self.background=asyncio.create_task(self.refresh_inbox())
+        if getattr(self,'tools',TOOLS):
+            self.background=asyncio.create_task(self.refresh_inbox())
 
     async def refresh_inbox(self):
         while not self.closed:
