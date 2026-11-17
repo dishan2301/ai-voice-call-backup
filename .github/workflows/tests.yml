@@ -7,7 +7,7 @@ jobs:
       DEPLOYMENT_MODE: personal
       DATABASE_KEY_FILE: ""
       EMAIL_PROVIDER: gmail
-      DATABASE_URL: sqlite:////tmp/ai-voice-call-tests.db
+      DATABASE_URL: sqlite:///./data/ci-tests.db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
