@@ -1,0 +1,3 @@
+# Optional PostgreSQL retrieval backend; existing installation remains usable without it.
+psycopg[binary]>=3.2,<4
+# Optional local E5: torch/transformers and locally supplied weights; never auto-installed.

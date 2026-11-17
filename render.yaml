@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ai-voice-call
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: DEPLOYMENT_MODE
+        value: hosted
+      - key: APP_ENV
+        value: production
+      - key: EMAIL_PROVIDER
+        value: gmail
+      - key: SCHEDULER_ENABLED
+        value: "false"
+      - key: TTS_ENABLED
+        value: "false"
+      - key: MICROSOFT_ENABLED
+        value: "false"

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Morning Mail PA</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #f3f6fb; color: #172033; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.5; }
+    header { background: linear-gradient(135deg, #102a43, #1769aa); color: white; padding: 2.2rem max(1rem, calc((100% - 1100px)/2)); }
+    header h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.7rem); }
+    header p { margin: .35rem 0 0; color: #d9edff; }
+    main { max-width: 1100px; margin: auto; padding: 1rem; }
+    section, article { background: white; border: 1px solid #e4eaf1; border-radius: .9rem; padding: clamp(1rem, 3vw, 1.4rem); margin: 1rem 0; box-shadow: 0 8px 24px #1020300b; }
+    h2 { margin-top: 0; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; margin: 1rem 0; }
+    #mail-question { align-items: end; }
+    #mail-question label { margin: 0; }
+    .assistant { background: #eaf5ff; border-color: #b9dcf7; }
+    .assistant p { margin: .35rem 0; }
+    .status { min-height: 1.5rem; font-weight: 650; color: #164e78; }
+    .counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .7rem; margin: 1rem 0; }
+    .count { background: #eef5fb; border-radius: .65rem; padding: .9rem; }
+    .count strong { font-size: 1.35rem; }
+    .critical { border-left: .35rem solid #b42318; }
+    .HIGH { border-left: .35rem solid #d97706; }
+    .MEDIUM { border-left: .35rem solid #2563eb; }
+    button { border: 0; border-radius: .55rem; padding: .72rem 1rem; cursor: pointer; background: #1769aa; color: white; font: inherit; font-weight: 650; }
+    button:hover { filter: brightness(.93); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+    button[disabled] { cursor: not-allowed; opacity: .6; }
+    button.secondary { background: #526171; }
+    button.done { background: #18794e; }
+    form.inline { display: inline-block; margin: .2rem .15rem .2rem 0; }
+    label { display: block; margin: .7rem 0; }
+    input, select { padding: .6rem; width: min(26rem, 100%); border: 1px solid #b7c2cf; border-radius: .4rem; background: white; }
+    input[type="checkbox"] { width: auto; }
+    pre { white-space: pre-wrap; font: inherit; }
+    small { color: #596777; }
+    .history { padding-left: 1.2rem; }
+    .history li { margin: .65rem 0; }
+    @media (max-width: 560px) { .toolbar > *, .toolbar form, .toolbar button { width: 100%; } }
+  </style>
+</head>
+<body>
+{% macro mail_item(item, analysis, email) -%}
+  <article class="{{ analysis.importance }}">
+    <small>{{ item.section }} · {{ analysis.importance }} · {{ item.user_status }}</small>
+    <h3>{{ analysis.sender }} — {{ analysis.subject }}</h3>
+    <p><small>Source: {{ email.provider | upper }} · received {{ email.received_at }}{% if email.provider == 'gmail' %} · <a href="https://mail.google.com/mail/u/0/#all/{{ email.provider_message_id }}" target="_blank" rel="noopener">Verify original in Gmail</a>{% endif %}</small></p>
+    <p><strong>AI summary:</strong> {{ analysis.summary }}</p>
+    <p><strong>Why it matters:</strong> {{ analysis.why_important }}</p>
+    <p><strong>Recommended:</strong> {{ analysis.requested_action }}</p>
+    {% if analysis.deadline %}<p><strong>Deadline:</strong> {{ analysis.deadline }}</p>{% endif %}
+    <p><small>AI confidence estimate: {{ (analysis.confidence * 100) | round | int }}% · model {{ analysis.model }}{% if analysis.risk_flags_json %} · review flags: {{ analysis.risk_flags_json | join(', ') }}{% endif %}</small></p>
+    <form class="inline" method="post" action="/dashboard/items/{{ item.id }}/done"><button class="done">Done</button></form>
+    <form class="inline" method="post" action="/dashboard/items/{{ item.id }}/snooze"><button class="secondary">Snooze 1 day</button></form>
+    <form class="inline" method="post" action="/dashboard/items/{{ item.id }}/track"><button class="secondary">Keep tracking</button></form>
+  </article>
+{%- endmacro %}
+<header><h1>Morning Mail PA</h1><p>Your read-only daily email briefing. Data source: <strong>{{ data_source | upper }}</strong>.</p></header>
+<main>
+  {% if error %}<section role="alert" class="critical"><strong>{{ error }}</strong></section>{% endif %}
+  <section class="assistant" aria-labelledby="assistant-heading" data-voice-rate="{{ settings.tts_rate }}" data-voice-volume="{{ settings.tts_volume }}" data-speech="">
+    <h2 id="assistant-heading">Voice assistant</h2>
+    <p>Ask Gemini about your mailbox by typing, or click once to allow the microphone and speak. “Hello Google” can ask for the brief or any mail question.</p>
+    <div class="toolbar">
+      <button id="voice-toggle" type="button">🎙 Enable voice assistant</button>
+      <button id="voice-stop" class="secondary" type="button">■ Stop voice</button>
+    </div>
+    <form id="mail-question" class="toolbar">
+      <label for="mail-question-text">Ask Gemini about your mail</label>
+      <input id="mail-question-text" maxlength="2000" required placeholder="Which customer is waiting for a reply?">
+      <button type="submit">Ask assistant</button>
+    </form>
+    <div id="mail-answer" aria-live="polite" style="white-space:pre-wrap"></div>
+    <div id="mail-evidence"></div>
+    <p id="voice-status" class="status" role="status" aria-live="polite">Voice assistant is off.</p>
+    <small>Voice recognition depends on browser support and works while this page is open. Your browser will ask for microphone permission.</small>
+  </section>
+
+  <div class="toolbar"><form method="post" action="/dashboard/generate"><button type="submit">↻ Generate new briefing</button></form></div>
+
+  <section aria-labelledby="today-heading">
+    <h2 id="today-heading">{% if request.query_params.get('briefing_id') %}Saved briefing{% else %}Daily detailed brief{% endif %}</h2>
+    {% if today %}
+      <p><small>Saved {{ today.generated_at }} · mail window {{ today.period_start }} to {{ today.period_end }} · record #{{ today.id }}</small></p>
+      <div class="counts">
+        <div class="count"><strong>{{ today.total_emails }}</strong><br>new threads</div>
+        <div class="count"><strong>{{ today.critical_count }}</strong><br>critical</div>
+        <div class="count"><strong>{{ today.high_count }}</strong><br>high priority</div>
+        <div class="count"><strong>{{ today.reply_count }}</strong><br>replies</div>
+        <div class="count"><strong>{{ today.action_count }}</strong><br>other actions</div>
+      </div>
+      <div class="toolbar">
+        <form class="inline listen-form" method="post" action="/dashboard/briefings/{{ today.id }}/speak" data-speech='{{ today.spoken_brief | tojson }}'><button type="submit">▶ Listen to brief</button></form>
+        <form class="inline stop-form" method="post" action="/dashboard/speech/stop"><button class="secondary" type="submit">■ Stop speaking</button></form>
+      </div>
+      <pre>{{ today.detailed_brief }}</pre>
+    {% else %}
+      <p>No briefing has been generated today.</p>
+    {% endif %}
+  </section>
+
+  {% if items %}
+  <section aria-labelledby="items-heading">
+    <h2 id="items-heading">Important mail and actions</h2>
+    {% set important = namespace(count=0) %}
+    {% for item, analysis, email in items %}
+      {% if analysis.importance in ['CRITICAL', 'HIGH', 'MEDIUM'] or analysis.needs_reply or analysis.needs_action or analysis.deadline %}
+        {% set important.count = important.count + 1 %}
+        {{ mail_item(item, analysis, email) }}
+      {% endif %}
+    {% endfor %}
+    {% if important.count == 0 %}<p>No important emails or actions were found in this briefing.</p>{% endif %}
+    <details>
+      <summary>Other reviewed mail</summary>
+      {% for item, analysis, email in items %}
+        {% if not (analysis.importance in ['CRITICAL', 'HIGH', 'MEDIUM'] or analysis.needs_reply or analysis.needs_action or analysis.deadline) %}
+          {{ mail_item(item, analysis, email) }}
+        {% endif %}
+      {% endfor %}
+    </details>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="history-heading">
+    <h2 id="history-heading">Briefing history</h2>
+    {% if history %}<ul class="history">{% for brief in history %}<li><a href="/?briefing_id={{ brief.id }}">{{ brief.generated_at }} — {{ brief.total_emails }} new threads</a> · {{ brief.status }} <form class="inline listen-form" method="post" action="/dashboard/briefings/{{ brief.id }}/speak" data-speech='{{ brief.spoken_brief | tojson }}'><button type="submit">▶ Listen</button></form></li>{% endfor %}</ul>{% else %}<p>No earlier briefings.</p>{% endif %}
+  </section>
+
+  <section aria-labelledby="settings-heading">
+    <h2 id="settings-heading">Settings</h2>
+    <form method="post" action="/dashboard/settings">
+      <label>Briefing time <input name="briefing_time" type="time" required value="{{ settings.briefing_time }}"></label>
+      <label>Timezone <input name="app_timezone" required value="{{ settings.app_timezone }}"></label>
+      <label><input name="tts_enabled" type="checkbox" value="true" {% if settings.tts_enabled %}checked{% endif %}> Enable local text-to-speech</label>
+      <label>Voice speed <input name="tts_rate" type="range" min="50" max="400" value="{{ settings.tts_rate }}"></label>
+      <label>Voice volume <input name="tts_volume" type="range" min="0" max="1" step="0.1" value="{{ settings.tts_volume }}"></label>
+      <label>Gemini model <input name="model" value="{{ settings.model }}"></label>
+      <label>VIP senders, comma separated <input name="vip_senders" value="{{ settings.vip_senders | join(', ') }}"></label>
+      <label>VIP domains, comma separated <input name="vip_domains" value="{{ settings.vip_domains | join(', ') }}"></label>
+      <label>Important keywords, comma separated <input name="important_keywords" value="{{ settings.important_keywords | join(', ') }}"></label>
+      <button type="submit">Save settings</button>
+    </form>
+    <p><small>Secrets are configured only through local environment files and are never shown here.</small></p>
+  </section>
+</main>
+<script src="/static/dashboard.js?v=3" defer></script>
+</body>
+</html>

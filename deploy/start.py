@@ -1,0 +1,32 @@
+"""Cloud entrypoint. Generate fresh local keys only for a fresh preview database."""
+import os
+from pathlib import Path
+import secrets
+
+
+def prepare():
+    os.umask(0o077)
+    root=Path(__file__).resolve().parents[1]
+    os.chdir(root)
+    os.environ.setdefault('DEPLOYMENT_MODE','hosted')
+    os.environ.setdefault('APP_ENV','production')
+    os.environ.setdefault('SCHEDULER_ENABLED','false')
+    os.environ.setdefault('TTS_ENABLED','false')
+    host=os.environ.get('RENDER_EXTERNAL_HOSTNAME','').strip()
+    hosts=[v.strip() for v in os.environ.get('ALLOWED_HOSTS','localhost,127.0.0.1').split(',') if v.strip()]
+    if host and host not in hosts:hosts.append(host)
+    os.environ['ALLOWED_HOSTS']=','.join(hosts)
+    data=root/'data';data.mkdir(exist_ok=True,mode=0o700)
+    key=root/'secrets/database.key'
+    key.parent.mkdir(exist_ok=True,mode=0o700)
+    if not key.exists():
+        if (data/'morning_mail_pa.db').exists():raise RuntimeError('Database key missing; refusing existing database')
+        with key.open('xb') as f:f.write(secrets.token_bytes(32))
+    os.environ.setdefault('DATABASE_KEY_FILE',str(key))
+    return root
+
+
+if __name__=='__main__':
+    prepare()
+    os.execvp('python',['python','-m','uvicorn','deploy.cloud_app:app','--host','0.0.0.0',
+                       '--port',str(int(os.environ.get('PORT','10000'))),'--no-access-log'])

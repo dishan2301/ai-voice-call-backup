@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Morning Mail · App Preview</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#e9ecf4;font:15px/1.45 Inter,system-ui,sans-serif;color:#131b2e}
+    .phone{width:min(430px,100%);min-height:100vh;margin:auto;padding:20px;background:#f7f8fc}
+    header{display:flex;align-items:center;gap:12px}.logo{width:48px;height:48px;border-radius:18px;display:grid;place-items:center;background:#6c5ce7;color:#fff;font-size:23px;font-weight:900;position:relative}.logo:after{content:'ϟ';position:absolute;color:#39e6c5;right:4px;top:-8px;font-size:27px}
+    .eyebrow,.section,.cap{font-size:11px;letter-spacing:.11em;font-weight:800;color:#6c5ce7}.title{font-size:22px;font-weight:800}.status{color:#64748b;margin:18px 0 14px}
+    .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.metric{padding:12px;text-align:center;background:white;border-radius:14px}.num{display:block;font-size:22px;font-weight:800}.cap{color:#64748b;font-size:9px}
+    button{width:100%;height:54px;border:0;border-radius:16px;font-weight:800;font-size:15px}.sync{margin-top:14px;background:#fff;color:#6c5ce7;border:1px solid #e2e5f0}.listen{margin-top:10px;background:#6c5ce7;color:#fff}.ask{margin-top:10px;background:#e9e6ff;color:#6c5ce7}.choice{width:auto;height:38px;padding:0 14px;margin:8px 6px 0 0;border-radius:10px;background:#e9e6ff;color:#6c5ce7}.section{color:#64748b;margin:28px 0 10px}details.tools{margin-top:8px}details.tools summary{padding:12px;color:#64748b;text-align:center;cursor:pointer;font-size:13px;font-weight:700}details.tools button{height:42px;margin-top:6px;font-size:13px}
+    .card{padding:18px;margin-bottom:12px;border-radius:18px;background:white;box-shadow:0 8px 24px #23305b0c}.badge{font-size:10px;font-weight:900;color:#ea580c;letter-spacing:.07em}.subject{font-size:19px;font-weight:800;margin-top:9px}.sender{font-size:13px;font-weight:700;color:#64748b}.summary{color:#334155}.next{padding:10px 12px;border-radius:10px;background:#f4f2ff;color:#6c5ce7;font-size:13px;font-weight:800}.empty{text-align:center;color:#64748b}
+  </style>
+</head>
+<body><main class="phone">
+  <header><div class="logo">M</div><div><div class="eyebrow">MORNING MAIL</div><div class="title">Your executive inbox</div></div></header>
+  <div class="status" id="status" role="status">Loading saved briefing…</div>
+  <div class="metrics"><div class="metric"><b class="num" id="mail">—</b><span class="cap">MAIL</span></div><div class="metric"><b class="num" id="priority">—</b><span class="cap">PRIORITY</span></div><div class="metric"><b class="num" id="replies">—</b><span class="cap">REPLIES</span></div></div>
+  <button type="button" class="sync" id="sync">↻ &nbsp; Sync latest mail</button><button type="button" class="listen" id="listen">▶ &nbsp; Hear my brief</button><button type="button" class="ask" id="ask">🎙 &nbsp; Ask Gemini about your mail</button>
+  <details class="tools"><summary>More mail tools</summary><button type="button" class="sync" id="recent">Recent synced mail</button><button type="button" class="sync" id="commitments">Promises and follow-ups</button><button type="button" class="sync" id="waiting">Waiting on replies</button><button type="button" id="stop" class="sync">Stop voice</button></details>
+  <p id="voice-status" role="status" aria-live="polite">Voice is off.</p>
+  <p id="transcript" aria-live="polite"></p>
+  <form id="question"><label for="message">Ask Gemini anything about your mail or dictate a reply</label>
+    <textarea id="message" rows="3" maxlength="2000" required style="width:100%"></textarea>
+    <button id="submit" type="submit" class="ask">Ask assistant</button></form>
+  <p id="answer" style="white-space:pre-wrap" aria-live="polite"></p>
+  <pre id="draft" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+  <button id="readback" type="button" hidden>Read back exact draft</button>
+  <section id="evidence" aria-label="Source emails"></section>
+  <details id="priority-inbox" open><summary class="section">PRIORITY INBOX</summary><section id="cards"></section></details>
+</main><script src="/static/voice-session.js?v=20"></script><script src="/static/phone-preview.js?v=33"></script><script src="/static/planner.js?v=1"></script><script src="/static/daily-briefing.js?v=1"></script></body></html>

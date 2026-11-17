@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+secrets
+.local-asterisk
+data
+.venv*
+**/__pycache__
+.pytest_cache
+*.db
+*.db-*
+*.key
+*.pem
+*.apk
