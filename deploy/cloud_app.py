@@ -10,7 +10,12 @@ async def app(scope,receive,send):
     if scope['type']=='websocket' and path=='/talk/ws':
         from deploy.browser_voice import call
         return await call(scope,receive,send)
-    public={'/talk':'talk.html','/talk.js':'talk.js','/voice-capture.js':'voice-capture.js'}
+    if scope['type']=='http' and path in {'/chat/status','/chat/message'}:
+        if Request(scope).url.hostname not in get_settings().allowed_hosts:
+            return await JSONResponse({'detail':'Untrusted request host'},status_code=403)(scope,receive,send)
+        from deploy.chat_api import route
+        return await route(scope,receive,send)
+    public={'/chat':'chat.html','/chat.css':'chat.css','/chat.js':'chat.js','/talk':'talk.html','/talk.js':'talk.js','/voice-capture.js':'voice-capture.js'}
     if scope['type']=='http' and path in public and scope['method'] in {'GET','HEAD'}:
         if Request(scope).url.hostname not in get_settings().allowed_hosts:
             return await JSONResponse({'detail':'Untrusted request host'},status_code=403)(scope,receive,send)
@@ -21,7 +26,7 @@ async def app(scope,receive,send):
             return await JSONResponse({'detail':'Untrusted request host'},status_code=403)(scope,receive,send)
         return await HTMLResponse('''<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI Voice Call</title><style>body{font:18px system-ui;background:#111827;color:#f3f4f6;max-width:650px;margin:12vh auto;padding:24px}a{color:#93c5fd}</style>
-<h1>AI Voice Call</h1><p>Morning Mail PA cloud preview.</p>
+<h1>Morning Mail</h1><p><a href="/chat">Open Outlook chat assistant</a></p><p>Cloud preview.</p>
 <p>The backend is deployed. Private mail requires owner sign-in and server-side configuration.</p>
 <p>This free preview has temporary storage. It is not a production mailbox service.</p>
 <p><a href="/health">Check backend health</a></p>

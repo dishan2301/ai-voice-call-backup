@@ -44,3 +44,11 @@ docker run --rm -p 127.0.0.1:10000:10000 ai-voice-call
 ```
 
 Production requires durable encrypted storage, persistent credential keys, owner authentication, explicit hostnames, provider configuration and real-device voice/security verification. Outlook sending remains disabled.
+
+## Typed Outlook app
+
+Open `/chat` for the phone-friendly typed mail assistant. Questions use the existing authenticated mail agent; follow-ups share the session and answers include verified Outlook source cards. There are no microphone or SIP requirements. The page explicitly shows disconnected/configuration states rather than returning invented mailbox answers.
+
+Cloud Outlook needs its own owner sign-in: configure `MICROSOFT_ENABLED=true`, the existing app client ID/secret, an explicit `MICROSOFT_ALLOWED_EMAILS` allowlist, the HTTPS `/auth/microsoft/callback` redirect, `GEMINI_API_KEY`, and a private `PROVIDER_CREDENTIAL_KEY_BASE64` encoding 32 random bytes. Add the new callback to the Microsoft app registration without removing the laptop callback. The entrypoint materializes that key with private permissions and refuses to overwrite an inconsistent key. Do not put these values in Git. Only the owner signs in through Microsoft; possession of the general voice access code never grants mailbox access.
+
+The free preview still loses its database on restart. This is a short-lived test setup, not a durable mailbox deployment. The app does not silently reuse a laptop session or enable Outlook sending.
