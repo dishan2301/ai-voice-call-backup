@@ -206,6 +206,7 @@ class MailAgent:
         self.gmail = gmail
         self.mailbox_context = mailbox_context
         self.mail_first = False
+        self.sip_read_only = False
         self.retrieval_index = None
 
     def run(self, message: str, session_key: str = "phone", max_steps: int = 8,
@@ -215,6 +216,10 @@ class MailAgent:
         cancelled = cancelled or (lambda: False)
         if cancelled():
             return {"cancelled": True}
+        if self.sip_read_only and message.strip().lower() in CONFIRMATIONS:
+            return {"answer": "Use the website to review and send mail.",
+                    "spoken_answer": "Use the website to review and send mail.",
+                    "state": "READ_ONLY", "evidence": []}
         reply_request = bool(seed_thread_id or re.search(r"\b(reply|respond|response)\b", message, re.I))
         self.retrieval_request = message
         structured_intent = self.parse_structured_intent(message)
@@ -538,6 +543,12 @@ class MailAgent:
                 try:
                     from app.voice.mail_first import MAIL_POLICY
                     policy = MAIL_POLICY if self.mail_first else ""
+                    tools = TOOLS
+                    if self.sip_read_only:
+                        tools = ("Available tools: search_mail {query, limit, page_token} searches Gmail "
+                                 "directly with Gmail search syntax. get_thread {thread_id, limit} opens "
+                                 "a verified search result or the active thread for a follow-up. "
+                                 "Direct sync, draft, edit, and send requests to the website.")
                     if self.settings.email_provider == "microsoft":
                         policy += ("\nThe active provider is Outlook. Use search_history with text and exact sender/recipient, "
                                    "timezone-aware date bounds or thread IDs. All sources are freshly verified through Graph. "
@@ -547,7 +558,7 @@ class MailAgent:
                         policy += ("\nsearch_history also accepts exact sender/recipient addresses, company aliases, contact names, "
                                    "timezone-aware start_date/end_date bounds, unread and has_attachments. "
                                    "Use verified company/contact resolution; never interpret body mentions as sender identity.")
-                    decision = llm.generate_json(SYSTEM_PROMPT + policy + "\n\n" + TOOLS, prompt, DECISION_SCHEMA)
+                    decision = llm.generate_json(SYSTEM_PROMPT + policy + "\n\n" + tools, prompt, DECISION_SCHEMA)
                 except LLMProviderError:
                     prepared = db.scalar(select(AgentAction).where(
                         AgentAction.conversation_id == conversation.id,
@@ -724,7 +735,9 @@ class MailAgent:
                     arguments = {**arguments, **structured_intent}
                 approval_id = self._explicit_approval(message)
                 emit({"type": "tool.started", "tool": tool})
-                if self.mail_first and tool not in {"search_mail", "search_history", "get_thread",
+                if self.sip_read_only and tool not in {"search_mail", "get_thread"}:
+                    result = {"error": "This call can search and read mail. Sync, draft and send on the website."}
+                elif self.mail_first and tool not in {"search_mail", "search_history", "get_thread",
                         "sync_mail", "list_commitments", "detect_unanswered", "recall_memory",
                         "prepare_draft", "list_pending_actions"}:
                     result = {"error": "This session permits mail retrieval and reviewed replies only."}
@@ -766,6 +779,9 @@ class MailAgent:
                         try:
                             arguments = {**arguments, "query": search_query(
                                 str(arguments.get("query", "")), message, self.settings.timezone)}
+                            if self.sip_read_only:
+                                # Bound each phone turn's review and keep the provider continuation.
+                                arguments["limit"] = min(self._limit(arguments), 5)
                             page_key = (arguments["query"].strip().casefold(),
                                         str(arguments.get("page_token", "")))
                             if page_key in searched_pages:
@@ -838,7 +854,7 @@ class MailAgent:
                                                   for item in result.get("messages", [])]
                                     history_count = 0
                                     term = str(arguments.get("text") or self._history_term(arguments["query"])).strip()
-                                    if term and term.casefold() not in searched_history_terms:
+                                    if not self.sip_read_only and term and term.casefold() not in searched_history_terms:
                                         searched_history_terms.add(term.casefold())
                                         history = self._search_history(db, {"text": term, "limit": 20, **structured_intent})
                                         local = history.get("messages", [])

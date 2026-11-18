@@ -103,6 +103,40 @@ def test_voice_confirmation_and_failed_tool_are_safe(monkeypatch):
         voice.close()
     asyncio.run(exercise())
 
+
+def test_sip_mail_blocks_drafts_and_confirmation_at_the_agent():
+    from app.database.models import AgentAction
+
+    agent, factory = make_agent([
+        decision(tool="prepare_draft", arguments={"to": "client@example.com", "body": "Hello"}),
+        decision(kind="final", answer="Use the website to draft."),
+    ])
+    agent.mail_first = agent.sip_read_only = True
+    assert agent.run("done", "sip")["state"] == "READ_ONLY"
+    agent.run("Please draft a new message", "sip")
+    assert not agent.gmail.sent
+    with factory() as db:
+        assert not db.scalars(select(AgentAction)).all()
+
+
+def test_sip_voice_passes_only_short_answer_back_to_live():
+    from scripts.sip_gmail import SipMailLive
+
+    async def exercise():
+        live = SipMailLive(None, None, None, None)
+        live.socket = AsyncMock()
+        await live.send({"toolResponse": {"functionResponses": [{
+            "id": "1", "name": "mail_request", "response": {
+                "spoken_answer": "You have one match.", "evidence": ["private source"],
+                "raw_transcript": "private speech",
+            },
+        }]}})
+        sent = json.loads(live.socket.send.call_args.args[0])
+        response = sent["toolResponse"]["functionResponses"][0]["response"]
+        assert response == {"spoken_answer": "You have one match."}
+
+    asyncio.run(exercise())
+
 @pytest.mark.parametrize('case', [
     'test_m3_contextual_followup_revalidates_active_gmail_thread',
     'test_m3_draft_selection_is_thread_aware_after_topic_switch',

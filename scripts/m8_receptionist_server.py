@@ -11,6 +11,7 @@ import struct
 import time
 import uuid
 
+from fastapi import HTTPException
 from app.voice.receptionist_audio import AudioAdapter
 from app.voice.m8_lifecycle import cleanup
 
@@ -75,13 +76,15 @@ class MockLive:
 
 
 class CallServer:
-    def __init__(self, enabled=False, grant=None, grant_seconds=60, call_seconds=30, live_factory=None):
+    def __init__(self, enabled=False, grant=None, grant_seconds=60, call_seconds=30,
+                 live_factory=None, reusable=False):
         self.enabled = enabled
         self.grant = grant
         self.expires = time.monotonic() + grant_seconds
         self.call_seconds = call_seconds
         self.active = False
         self.live_factory = live_factory
+        self.reusable = reusable
         self.cleanup_deadline = None
         self.termination = asyncio.Event()
 
@@ -104,7 +107,8 @@ class CallServer:
             # Atomic admission: no await between checking and consuming the grant.
             if self.active or call_id != self.grant:
                 return
-            self.grant = None
+            if not self.reusable:
+                self.grant = None
             self.active = claimed = True
             live = self.live_factory(adapter) if self.live_factory else MockLive(adapter)
             task = asyncio.create_task(adapter.playback())
@@ -130,7 +134,7 @@ class CallServer:
             reason = 'hangup'
         except asyncio.IncompleteReadError:
             reason = 'eof'
-        except (TimeoutError, ValueError, ConnectionError, RuntimeError) as exc:
+        except (TimeoutError, ValueError, OSError, RuntimeError, HTTPException) as exc:
             reason = type(exc).__name__
         finally:
             if claimed:

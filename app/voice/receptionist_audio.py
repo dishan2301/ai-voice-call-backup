@@ -58,6 +58,7 @@ class AudioAdapter:
         self.input_state = self.output_state = None
         self.closed = False
         self.first_input = self.first_output = None
+        self.last_output = None
 
     async def input(self, live, pcm8):
         if len(pcm8) % 2:
@@ -70,19 +71,25 @@ class AudioAdapter:
     def output(self, pcm24):
         if getattr(self, 'diagnostics', None):
             self.diagnostics.audio(pcm24)
-        pcm, self.output_state = audioop.ratecv(pcm24, 2, 1, 24000, 8000, self.output_state)
+        pcm, self.output_state = audioop.ratecv(pcm24, 2, 1, 24000, 8000, self.output_state, 1, 1)
         if len(self.buffer) + len(pcm) > 160000:
             raise RuntimeError("Playback buffer exhausted")
         self.buffer.extend(pcm)
+        self.last_output = time.monotonic()
 
     def interrupt(self):
         self.buffer.clear()
         self.output_state = None
 
     async def playback(self):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time()
         while not self.closed:
-            if len(self.buffer) >= 320:
-                pcm = bytes(self.buffer[:320])
+            # Let a burst accumulate full frames, but never strand the last
+            # fractional frame of a reply when the provider stops generating.
+            if len(self.buffer) >= 320 or (
+                    self.buffer and time.monotonic() - self.last_output >= .06):
+                pcm = bytes(self.buffer[:320]).ljust(320, b'\x00')
                 del self.buffer[:320]
                 self.writer.write(audiosocket_frame(0x10, pcm))
                 await asyncio.wait_for(self.writer.drain(), 2)
@@ -90,7 +97,8 @@ class AudioAdapter:
                     self.diagnostics.socket_frame()
                 if self.first_output is None:
                     self.first_output = time.monotonic()
-            await asyncio.sleep(.02)
+            deadline = max(deadline + .02, loop.time())
+            await asyncio.sleep(max(0, deadline - loop.time()))
 
     async def close(self):
         self.closed = True

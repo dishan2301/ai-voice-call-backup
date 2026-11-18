@@ -1,6 +1,7 @@
 import base64
 import logging
 import re
+import time
 from email.message import EmailMessage
 from datetime import datetime, timezone
 from email.utils import getaddresses, parseaddr
@@ -359,8 +360,7 @@ class GmailProvider(EmailProvider):
         while True:
             messages: List[MailMessage] = []
             response = self.service.users().messages().list(
-                userId="me", maxResults=100, pageToken=page_token,
-            includeSpamTrash=True
+                userId="me", maxResults=100, pageToken=page_token, includeSpamTrash=True
             ).execute()
             for summary in response.get("messages", []):
                 message_id = str(summary["id"])
@@ -441,6 +441,65 @@ class GmailProvider(EmailProvider):
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         return self.search_page(query, limit)["messages"]
+
+    def search_metadata(self, query: str, limit: int, *, inbox: bool = False) -> Dict[str, Any]:
+        """Read one bounded Gmail page and batch its headers for the SIP caller."""
+        self._ensure_fresh_token()
+        messages = self.service.users().messages()
+        page = messages.list(userId="me", q=query or None, maxResults=limit,
+                             labelIds=["INBOX"] if inbox else None).execute()
+        ids = [item["id"] for item in page.get("messages", [])[:limit]]
+        rows = {}
+        if ids:
+            def collect(request_id, raw, error):
+                if error:
+                    # Deleted between listing and fetch. The response is partial.
+                    if getattr(getattr(error, "resp", None), "status", None) != 404:
+                        raise error
+                    return
+                millis = int(raw["internalDate"])
+                rows[request_id] = {
+                    "id": request_id, "sender": _header(raw, "From")[:320],
+                    "subject": _header(raw, "Subject")[:500],
+                    "date": datetime.fromtimestamp(millis / 1000, timezone.utc).isoformat(),
+                    "snippet": str(raw.get("snippet") or "")[:500],
+                    "unread": "UNREAD" in raw.get("labelIds", []),
+                }
+
+            batch = self.service.new_batch_http_request(callback=collect)
+            for message_id in ids:
+                batch.add(messages.get(userId="me", id=message_id, format="metadata",
+                                       metadataHeaders=["From", "Subject"],
+                                       fields="id,internalDate,labelIds,snippet,payload(headers)"),
+                          request_id=message_id)
+            batch.execute()
+        return {"messages": [rows[mid] for mid in ids if mid in rows],
+                "complete": not page.get("nextPageToken") and len(rows) == len(ids)}
+
+    def count_matching_ids(self, query: str, *, inbox: bool, deadline: float) -> Dict[str, Any]:
+        """Count message IDs only, with no estimate on incomplete enumeration."""
+        self._ensure_fresh_token()
+        messages = self.service.users().messages()
+        ids, tokens = set(), set()
+        token = None
+        for _ in range(40):
+            if time.monotonic() >= deadline:
+                break
+            page = messages.list(
+                userId="me", q=query or None, labelIds=["INBOX"] if inbox else None,
+                includeSpamTrash=False, maxResults=500, pageToken=token,
+                fields="messages(id),nextPageToken",
+            ).execute()
+            if time.monotonic() >= deadline:
+                break
+            ids.update(row["id"] for row in page.get("messages", []))
+            token = page.get("nextPageToken")
+            if not token:
+                return {"complete": True, "count": len(ids)}
+            if token in tokens:
+                break
+            tokens.add(token)
+        return {"complete": False}
 
     def search_page(self, query: str, limit: int = 10, page_token: str = "") -> Dict[str, Any]:
         self._ensure_fresh_token()

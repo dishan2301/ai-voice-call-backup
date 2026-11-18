@@ -1,0 +1,15 @@
+[Unit]
+Description=Morning Mail Gmail assistant for the isolated SIP account
+After=morningpa-network.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/morning-mail-pa
+ExecStart=%h/Documents/morning-mail-pa/.venv311/bin/python -m scripts.sip_gmail serve
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target
